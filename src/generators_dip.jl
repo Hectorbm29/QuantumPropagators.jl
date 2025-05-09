@@ -3,7 +3,7 @@ module Generators_dip
 using LinearAlgebra
 using SparseArrays
 
-export Generator_dip, Operator_dip, ScaledOperator_dip
+export Generator_dip
 export hamiltonian_dip
 import ..Controls: get_controls, evaluate, evaluate!, substitute
 import ..Generators: Operator, ScaledOperator
@@ -26,16 +26,16 @@ where ``Ĥ_l`` are the `ops` and ``ϵ_k(t)`` are the `amplitudes` and `a_l` are
 `ops`, the first `ops` are considered as drift terms (``Ĥ_0``,
 respectively subsequent terms with ``a_l ≡ 1``).
 
-A `Generator` object should generally not be instantiated directly, but via
+A `Generator_dip` object should generally not be instantiated directly, but via
 [`hamiltonian_dip`](@ref).
 
-The list of `ops` and `amplitudes` are properties of the `Generator`. They
+The list of `ops` and `amplitudes` are properties of the `Generator_dip`. They
 should not be mutated.
 
 # See also
 
 * [`Operator`](@ref) for static generators, which may be obtained from a
-  `Generator` via [`evaluate`](@ref).
+  `Generator_dip` via [`evaluate`](@ref).
 """
 struct Generator_dip{OT,AT,DT}
 
@@ -43,29 +43,29 @@ struct Generator_dip{OT,AT,DT}
     amplitudes::Vector{AT}
     dresses::Vector{DT}
 
-    function Generator(ops::Vector{OT}, amplitudes::Vector{AT}, dresses::Vector{DT}) where {OT,AT,DT}
+    function Generator_dip(ops::Vector{OT}, amplitudes::Vector{AT}, dresses::Vector{DT}) where {OT,AT,DT}
         if length(dresses) > length(ops)
             error(
-                "The number of dresses cannot exceed the number of operators in a Generator"
+                "The number of dresses cannot exceed the number of operators in a Generator_dip"
             )
         end
         if length(amplitudes) < 1
-            error("A Generator requires at least one amplitude")
+            error("A Generator_dip requires at least one amplitude")
         end
         new{OT,AT,DT}(ops, amplitudes, dresses)
     end
 
 end
 
-function Base.show(io::IO, G::Generator{OT,AT,DT}) where {OT,AT,DT}
-    print(io, "Generator($(G.ops), $(G.amplitudes), $(G.dresses))")
+function Base.show(io::IO, G::Generator_dip{OT,AT,DT}) where {OT,AT,DT}
+    print(io, "Generator_dip($(G.ops), $(G.amplitudes), $(G.dresses))")
 end
 
-function Base.summary(io::IO, G::Generator)
-    print(io, "Generator with $(length(G.ops)) ops and $(length(G.amplitudes)) amplitudes and $(length(G.dresses)) dresses")
+function Base.summary(io::IO, G::Generator_dip)
+    print(io, "Generator_dip with $(length(G.ops)) ops and $(length(G.amplitudes)) amplitudes and $(length(G.dresses)) dresses")
 end
 
-function Base.show(io::IO, ::MIME"text/plain", G::Generator{OT,AT,DT}) where {OT,AT,DT}
+function Base.show(io::IO, ::MIME"text/plain", G::Generator_dip{OT,AT,DT}) where {OT,AT,DT}
     Base.summary(io, G)
     println(io, "\n ops::Vector{$OT}:")
     for op in G.ops
@@ -123,7 +123,7 @@ function _make_generator_dip(terms...; ampl_vec, check=false)
     dresses = Any[]
     if check
         if (length(terms) == 1) && (terms[1] isa Union{Tuple,Vector})
-            @warn("Generator terms may not have been properly expanded")
+            @warn("Generator_dip terms may not have been properly expanded")
         end
     end
     for term in terms
@@ -192,7 +192,7 @@ function _make_generator_dip(terms...; ampl_vec, check=false)
     DT = eltype(dresses)
     if length(amplitudes) == 0 || length(dresses) == 0
         # No amplitudes or dresses, so we have a static operator
-        (length(drift) > 0) || error("Generator has no terms")
+        (length(drift) > 0) || error("Generator_dip has no terms")
         return drift[1]
     else
         if check
@@ -299,26 +299,14 @@ function evaluatedress(dress::Function, ampl_vector::Vector, tlist::Vector, n::I
 end
 
 
-
-
-
-
-
-
-
-
 # Some functions to evaluate the dress where made yesterday
-
-
-
-
-
 
 
 function evaluate(generator::Generator_dip, args...; vals_dict=IdDict())
     coeffs = []
-    for (i, ampl) in enumerate(generator.amplitudes)
-        coeff = evaluate(ampl, args...; vals_dict)
+    ampl_vector = generator.amplitudes
+    for (i, dres) in enumerate(generator.dresses)
+        coeff = evaluate(ampl, ampl_vector, args...; vals_dict)
         if coeff isa Number
             push!(coeffs, coeff)
         else
@@ -335,14 +323,14 @@ end
 function evaluate!(op::Operator, generator::Generator_dip, args...; vals_dict=IdDict())
     @assert length(op.ops) == length(generator.ops)
     @assert all(O ≡ P for (O, P) in zip(op.ops, generator.ops))
-    for (i, ampl) in enumerate(generator.amplitudes)
-        coeff = evaluate(ampl, args...; vals_dict)
+    ampl_vector = generator.amplitudes
+    for (i, dres) in enumerate(generator.dresses)
+        coeff = evaluate(dres, ampl_vector, args...; vals_dict)
         @assert coeff isa Number
         op.coeffs[i] = coeff
     end
     return op
 end
-
 
 function substitute(generator::Generator_dip, replacements)
     if generator ∈ keys(replacements)
@@ -350,7 +338,7 @@ function substitute(generator::Generator_dip, replacements)
     end
     ops = [substitute(op, replacements) for op in generator.ops]
     amplitudes = [substitute(ampl, replacements) for ampl in generator.amplitudes]
-    return Generator(ops, amplitudes)
+    return Generator_dip(ops, amplitudes, generator.dresses)
 end
 
 function substitute(operator::Operator, replacements)
