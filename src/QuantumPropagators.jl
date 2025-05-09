@@ -25,6 +25,7 @@ include("controls.jl")  # submodule Controls
 include("amplitudes.jl")  # submodule Amplitudes
 
 include("generators.jl")  # submodule Generators
+include("generators_dip.jl")  # submodule Generators_dip
 
 
 using .Generators
