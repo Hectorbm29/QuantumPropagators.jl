@@ -30,6 +30,9 @@ include("generators.jl")  # submodule Generators
 using .Generators
 export liouvillian, hamiltonian
 
+using .Generators_dip
+export hamiltonian_dip
+
 include("propagator.jl")
 export init_prop, reinit_prop!, prop_step!
 # not exported: set_t!, set_state!
