@@ -280,14 +280,16 @@ function evaluatedress(dress::Function, ampl_vector::Vector, tlist::Vector, n::I
                 push!(numerical_amplitudes, coeff)
             else
                 error(
-                    "In `evaluate($dress, $ampl_vector, $t)`, the amplitude $i evaluates to $(typeof(coeff)), not a number"
+                    "In `evaluate($dress, $ampl_vector, $n)`, the amplitude $i evaluates to $(typeof(coeff)), not a number"
                 )
             end
         elseif ampl isa Vector
             coeff = evaluate(ampl, tlist, n)
             if coeff isa Number
+                push!(numerical_amplitudes, coeff)
+            else
                 error(
-                    "In `evaluate($dress, $ampl_vector, $t)`, the amplitude $i evaluates to $(typeof(ampl)), not a number"
+                    "In `evaluate($dress, $ampl_vector, $n)`, the amplitude $i evaluates to $(typeof(coeff)), not a number"
                 )
             end
         else
