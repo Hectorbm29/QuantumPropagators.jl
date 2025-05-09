@@ -35,6 +35,7 @@ set_t!(propagator::ExpPropagator, t) = _pwc_set_t!(propagator, t)
 _exp_prop_convert_state(state) = typeof(state)
 _exp_prop_convert_operator(::Any) = Any
 _exp_prop_convert_operator(::Generator) = Matrix{ComplexF64}
+_exp_prop_convert_operator(::Generator_dip) = Matrix{ComplexF64}
 _exp_prop_convert_operator(::Operator) = Matrix{ComplexF64}
 _exp_prop_convert_operator(::ScaledOperator) = Matrix{ComplexF64}
 
@@ -156,6 +157,8 @@ function prop_step!(propagator::ExpPropagator)
             if supports_inplace(propagator.genop)
                 _pwc_set_genop!(propagator, n)
                 H = convert(propagator.convert_operator, propagator.genop)
+                println("We are hereee: ", H)
+                println("Type to convert: ", propagator.convert_operator)
             else
                 H = convert(propagator.convert_operator, _pwc_get_genop(propagator, n))
             end

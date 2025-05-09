@@ -114,9 +114,9 @@ a static operator (e.g., an `AbstractMatrix` or [`Operator`](@ref)):
 The `hamiltonian` function may generate warnings if the `terms` are of an
 unexpected type or structure.  These can be suppressed with `check=false`.
 """
-hamiltonian_dip(terms...; amplvec, check=true) = _make_generator_dip(terms...; amplvec, check)
+hamiltonian_dip(terms...; ampl_vec=[], check=true) = _make_generator_dip(terms...; ampl_vec, check)
 
-function _make_generator_dip(terms...; ampl_vec, check=false)
+function _make_generator_dip(terms...; ampl_vec=[], check=false)
     ops = Any[]
     drift = Any[]
     amplitudes = Any[]
@@ -306,7 +306,7 @@ function evaluate(generator::Generator_dip, args...; vals_dict=IdDict())
     coeffs = []
     ampl_vector = generator.amplitudes
     for (i, dres) in enumerate(generator.dresses)
-        coeff = evaluate(ampl, ampl_vector, args...; vals_dict)
+        coeff = evaluate(dres, ampl_vector, args...; vals_dict)
         if coeff isa Number
             push!(coeffs, coeff)
         else
