@@ -157,8 +157,6 @@ function prop_step!(propagator::ExpPropagator)
             if supports_inplace(propagator.genop)
                 _pwc_set_genop!(propagator, n)
                 H = convert(propagator.convert_operator, propagator.genop)
-                println("We are hereee: ", H)
-                println("Type to convert: ", propagator.convert_operator)
             else
                 H = convert(propagator.convert_operator, _pwc_get_genop(propagator, n))
             end
