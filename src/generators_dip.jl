@@ -42,8 +42,10 @@ struct Generator_dip{OT,AT,DT}
     ops::Vector{OT}
     amplitudes::Vector{AT}
     dresses::Vector{DT}
+    dresses_derivatives::Union{Matrix{Function}, Nothing}
 
-    function Generator_dip(ops::Vector{OT}, amplitudes::Vector{AT}, dresses::Vector{DT}) where {OT,AT,DT}
+    function Generator_dip(ops::Vector{OT}, amplitudes::Vector{AT}, 
+                            dresses::Vector{DT}; dresses_derivatives::Union{Vector{Vector{Function}}, Nothing}=nothing, deriv_warn=false) where {OT,AT,DT}
         if length(dresses) > length(ops)
             error(
                 "The number of dresses cannot exceed the number of operators in a Generator_dip"
@@ -52,17 +54,44 @@ struct Generator_dip{OT,AT,DT}
         if length(amplitudes) < 1
             error("A Generator_dip requires at least one amplitude")
         end
-        new{OT,AT,DT}(ops, amplitudes, dresses)
+        if isnothing(dresses_derivatives)
+            if deriv_warn
+                @warn("No dress derivatives provided.\n 
+                    If you want to use the dress derivatives, please provide them as a vector of vectors of functions.\n 
+                    The structure should be: [[∂d1╱∂a1, ∂d2╱∂a1, ∂d3╱∂a1, ...], [∂d1╱∂a2, ∂d2╱∂a2, ∂d3╱∂a2, ...], ...].\n")
+            end
+        elseif length(dresses_derivatives) != length(amplitudes)
+            error("The number of dresses derivatives must match the number of amplitudes")
+        else
+            dresses_derivatives = hcat(dresses_derivatives...)
+            if size(dresses_derivatives, 2) != length(dresses)
+                error("The number of dresses derivatives for each amplitude must match the number of dresses")
+            end
+        end
+
+        # TODO: update documentation over dresses_derivatives
+        """
+        dresses_derivatives::Matrix{Function}
+        A matrix of functions that represent the derivatives of the dresses with respect to the amplitudes.
+        The dress derivatives are functions of the amplitudes and the time.
+
+        columns are the amplitudes and rows are the dresses.
+        """
+
+        new{OT,AT,DT}(ops, amplitudes, dresses, dresses_derivatives)
     end
 
 end
 
 function Base.show(io::IO, G::Generator_dip{OT,AT,DT}) where {OT,AT,DT}
-    print(io, "Generator_dip($(G.ops), $(G.amplitudes), $(G.dresses))")
+    print(io, "Generator_dip($(G.ops), $(G.amplitudes), $(G.dresses), $(G.dresses_derivatives))")
 end
 
 function Base.summary(io::IO, G::Generator_dip)
     print(io, "Generator_dip with $(length(G.ops)) ops and $(length(G.amplitudes)) amplitudes and $(length(G.dresses)) dresses")
+    if !isnothing(G.dresses_derivatives)
+        print(io, " and $(size(G.dresses_derivatives)) dress derivatives")
+    end
 end
 
 function Base.show(io::IO, ::MIME"text/plain", G::Generator_dip{OT,AT,DT}) where {OT,AT,DT}
@@ -84,6 +113,14 @@ function Base.show(io::IO, ::MIME"text/plain", G::Generator_dip{OT,AT,DT}) where
         print(io, "  ")
         show(io, dress)
         print(io, "\n")
+    end
+    if !isnothing(G.dresses_derivatives)
+        println(io, " dresses_derivatives::Matrix{Function}:")
+        for dressd in G.dresses_derivatives
+            print(io, "  ")
+            show(io, dressd)
+            print(io, "\n")
+        end
     end
 end
 
@@ -114,9 +151,9 @@ a static operator (e.g., an `AbstractMatrix` or [`Operator`](@ref)):
 The `hamiltonian` function may generate warnings if the `terms` are of an
 unexpected type or structure.  These can be suppressed with `check=false`.
 """
-hamiltonian_dip(terms...; ampl_vec=[], check=true) = _make_generator_dip(terms...; ampl_vec, check)
+hamiltonian_dip(terms...; ampl_vec=[], dres_der=nothing, check=true) = _make_generator_dip(terms...; ampl_vec, dres_der, check)
 
-function _make_generator_dip(terms...; ampl_vec=[], check=false)
+function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=false)
     ops = Any[]
     drift = Any[]
     amplitudes = Any[]
@@ -184,6 +221,14 @@ function _make_generator_dip(terms...; ampl_vec=[], check=false)
         end
         push!(amplitudes, ampl)
     end
+    # Check the dresses derivatives if provided
+    if !isnothing(dres_der)
+        if check
+            if !(dres_der isa Vector{Vector{Function}})
+                @warn("Dresses derivatives are not a vector of vectors of functions: $(typeof(dre_der))")
+            end
+        end
+    end
     ops = [drift..., ops...]  # narrow eltype
     OT = eltype(ops)
     amplitudes = [amplitudes...]  # narrow eltype
@@ -204,9 +249,13 @@ function _make_generator_dip(terms...; ampl_vec=[], check=false)
             end
         end
         if (AT <: Number)
+            if !isnothing(dres_der)
+                @warn("Dresses derivatives are not supported for amplitudes of type $AT")
+            end
             return Operator(ops, amplitudes)
         else
-            return Generator_dip(ops, amplitudes, dresses)
+            return Generator_dip(ops, amplitudes, dresses; 
+                dresses_derivatives=dres_der)
         end
     end
 end
