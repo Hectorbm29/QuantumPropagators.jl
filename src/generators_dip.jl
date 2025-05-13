@@ -45,7 +45,7 @@ struct Generator_dip{OT,AT,DT}
     dresses_derivatives::Union{Matrix{Function}, Nothing}
 
     function Generator_dip(ops::Vector{OT}, amplitudes::Vector{AT}, 
-                            dresses::Vector{DT}; dresses_derivatives::Union{Vector{Vector{Function}}, Nothing}=nothing, deriv_warn=false) where {OT,AT,DT}
+                            dresses::Vector{DT}; dresses_derivatives::Union{Matrix{Function}, Nothing}=nothing, deriv_warn=false) where {OT,AT,DT}
         if length(dresses) > length(ops)
             error(
                 "The number of dresses cannot exceed the number of operators in a Generator_dip"
@@ -60,10 +60,9 @@ struct Generator_dip{OT,AT,DT}
                     If you want to use the dress derivatives, please provide them as a vector of vectors of functions.\n 
                     The structure should be: [[∂d1╱∂a1, ∂d2╱∂a1, ∂d3╱∂a1, ...], [∂d1╱∂a2, ∂d2╱∂a2, ∂d3╱∂a2, ...], ...].\n")
             end
-        elseif length(dresses_derivatives) != length(amplitudes)
+        elseif size(dresses_derivatives, 1) != length(amplitudes)
             error("The number of dresses derivatives must match the number of amplitudes")
         else
-            dresses_derivatives = hcat(dresses_derivatives...)
             if size(dresses_derivatives, 2) != length(dresses)
                 error("The number of dresses derivatives for each amplitude must match the number of dresses")
             end
@@ -151,9 +150,9 @@ a static operator (e.g., an `AbstractMatrix` or [`Operator`](@ref)):
 The `hamiltonian` function may generate warnings if the `terms` are of an
 unexpected type or structure.  These can be suppressed with `check=false`.
 """
-hamiltonian_dip(terms...; ampl_vec=[], dres_der=nothing, check=true) = _make_generator_dip(terms...; ampl_vec, dres_der, check)
+hamiltonian_dip(terms...; ampl_vec=[], dres_der=nothing, check=true, deriv_warn=true) = _make_generator_dip(terms...; ampl_vec, dres_der, check, deriv_warn)
 
-function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=false)
+function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=false, deriv_warn=false)
     ops = Any[]
     drift = Any[]
     amplitudes = Any[]
@@ -228,6 +227,7 @@ function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=fals
                 @warn("Dresses derivatives are not a vector of vectors of functions: $(typeof(dre_der))")
             end
         end
+        dres_der = hcat(dres_der...)
     end
     ops = [drift..., ops...]  # narrow eltype
     OT = eltype(ops)
