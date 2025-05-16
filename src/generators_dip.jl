@@ -12,19 +12,25 @@ import ..Generators: Operator, ScaledOperator
 @doc raw"""A time-dependent generator.
 
 ```julia
-Generator_dip (ops::Vector{OT}, amplitudes::Vector{AT})
+Generator_dip (ops::Vector{OT}, amplitudes::Vector{AT}, dresses::Vector{DT}; dresses_derivatives::Union{Matrix{Function}, Nothing}=nothing, deriv_warn=true)
 ```
 
-produces an object of type `Generator_dip{OT,AT}` that represents
+produces an object of type `Generator_dip{OT,AT,DT}` that represents
 
 ```math
-Ĥ(t)= Ĥ_0 + \sum_l a_l(\{ϵ_k(t)\}) \, Ĥ_l\,,
+Ĥ(t)= Ĥ_0 + \sum_l d_l(a_k[\{ϵ_k(t)\}]) \, Ĥ_l\,,
 ```
 
-where ``Ĥ_l`` are the `ops` and ``ϵ_k(t)`` are the `amplitudes` and `a_l` are the dress functions. 
-``Ĥ(t)`` and ``Ĥ_l`` may represent operators in Hilbert space. If the number of `amplitudes` is less than the number of
+where ``Ĥ_l`` are the `ops` and ``a_k(t)`` are the `amplitudes` and `d_l` are the `dresses`. 
+``Ĥ(t)`` and ``Ĥ_l`` may represent operators in Hilbert space. If the number of `dresses` is less than the number of
 `ops`, the first `ops` are considered as drift terms (``Ĥ_0``,
-respectively subsequent terms with ``a_l ≡ 1``).
+respectively subsequent terms with ``d_l ≡ 1``). 
+Each element of `dresses` is a function of the amplitudes, which may be time-dependent.
+The optional `dresses_derivatives` is a matrix of functions that represent the derivatives of the dresses with respect 
+to the amplitudes. Rows are the dresses and columns are the amplitudes. Columns are the This is necessary when the generator 
+is used in algorithms that require the gradients of the dresses (GRAPE or Krotov for example).
+The structure should be: [[∂d1╱∂a1, ∂d2╱∂a1, ∂d3╱∂a1, ...], [∂d1╱∂a2, ∂d2╱∂a2, ∂d3╱∂a2, ...], ...].
+
 
 A `Generator_dip` object should generally not be instantiated directly, but via
 [`hamiltonian_dip`](@ref).
@@ -45,10 +51,15 @@ struct Generator_dip{OT,AT,DT}
     dresses_derivatives::Union{Matrix{Function}, Nothing}
 
     function Generator_dip(ops::Vector{OT}, amplitudes::Vector{AT}, 
-                            dresses::Vector{DT}; dresses_derivatives::Union{Matrix{Function}, Nothing}=nothing, deriv_warn=false) where {OT,AT,DT}
+                            dresses::Vector{DT}; dresses_derivatives::Union{Matrix{Function}, Nothing}=nothing, deriv_warn=true) where {OT,AT,DT}
         if length(dresses) > length(ops)
             error(
                 "The number of dresses cannot exceed the number of operators in a Generator_dip"
+            )
+        end
+        if length(dresses) < 1
+            error(
+                "A Generator_dip requires at least one dress function"
             )
         end
         if length(amplitudes) < 1
@@ -67,15 +78,6 @@ struct Generator_dip{OT,AT,DT}
                 error("The number of dresses derivatives for each amplitude must match the number of dresses")
             end
         end
-
-        # TODO: update documentation over dresses_derivatives
-        """
-        dresses_derivatives::Matrix{Function}
-        A matrix of functions that represent the derivatives of the dresses with respect to the amplitudes.
-        The dress derivatives are functions of the amplitudes and the time.
-
-        columns are the amplitudes and rows are the dresses.
-        """
 
         new{OT,AT,DT}(ops, amplitudes, dresses, dresses_derivatives)
     end
@@ -129,12 +131,15 @@ end
 In general,
 
 ```julia
-H = hamiltonian_dip(terms...; amplvec, check=true)
+H = hamiltonian_dip(terms...; amplvec, dres_der, check=true, deriv_warn=true)
 ```
 
 constructs a Hamiltonian based on the given `terms`. Each term must be an
 operator, a tuple `(op, dress)` of an operator and a dress function. `amplvec` is a vector of control amplitudes `ampl`. 
 Single operators are considered "drift" terms.
+`dres_der` is a matrix of functions that represent the derivatives of the dresses with respect to the amplitudes. 
+Rows are the dresses and columns are the amplitudes. This is necessary when the hamiltonian is used in algorithms that 
+require the gradients of the dresses (GRAPE or Krotov for example). 
 
 In most cases, each control amplitude will simply be a control function or
 vector of pulse values. In general, `ampl` can be an arbitrary object that
@@ -147,12 +152,12 @@ The `hamiltonian_dip` function will generally return a [`Generator_dip`](@ref)
 instance. However, if none of the given terms are time-dependent, it may return
 a static operator (e.g., an `AbstractMatrix` or [`Operator`](@ref)):
 
-The `hamiltonian` function may generate warnings if the `terms` are of an
+The `hamiltonian_dip` function may generate warnings if the `terms` are of an
 unexpected type or structure.  These can be suppressed with `check=false`.
 """
 hamiltonian_dip(terms...; ampl_vec=[], dres_der=nothing, check=true, deriv_warn=true) = _make_generator_dip(terms...; ampl_vec, dres_der, check, deriv_warn)
 
-function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=false, deriv_warn=false)
+function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=false, deriv_warn=true)
     ops = Any[]
     drift = Any[]
     amplitudes = Any[]
@@ -255,7 +260,7 @@ function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=fals
             return Operator(ops, amplitudes)
         else
             return Generator_dip(ops, amplitudes, dresses; 
-                dresses_derivatives=dres_der)
+                dresses_derivatives=dres_der, deriv_warn=deriv_warn)
         end
     end
 end
