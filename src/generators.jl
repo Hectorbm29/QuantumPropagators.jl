@@ -55,7 +55,6 @@ struct Generator{OT,AT}
         if length(amplitudes) < 1
             error("A Generator requires at least one amplitude")
         end
-        println("Generator: $ops, $amplitudes")
         new{OT,AT}(ops, amplitudes)
     end
 
@@ -391,7 +390,6 @@ function _make_generator(terms...; check=false)
     AT = eltype(amplitudes)
     if length(amplitudes) == 0
         (length(drift) > 0) || error("Generator has no terms")
-        println("Generating Drift")
         return drift[1]
     else
         if check
@@ -403,10 +401,8 @@ function _make_generator(terms...; check=false)
             end
         end
         if (AT <: Number)
-            println("Generating Operator")
             return Operator(ops, amplitudes)
         else
-            println("Generating Generator")
             return Generator(ops, amplitudes)
         end
     end
