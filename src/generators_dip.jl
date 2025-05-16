@@ -77,7 +77,6 @@ struct Generator_dip{OT,AT,DT}
         columns are the amplitudes and rows are the dresses.
         """
 
-        println("Generator dip: $ops, $amplitudes, $dresses, $dresses_derivatives")
         new{OT,AT,DT}(ops, amplitudes, dresses, dresses_derivatives)
     end
 
@@ -239,7 +238,6 @@ function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=fals
     if length(amplitudes) == 0 || length(dresses) == 0
         # No amplitudes or dresses, so we have a static operator
         (length(drift) > 0) || error("Generator_dip has no terms")
-        println("Making drift")
         return drift[1]
     else
         if check
@@ -254,10 +252,8 @@ function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=fals
             if !isnothing(dres_der)
                 @warn("Dresses derivatives are not supported for amplitudes of type $AT")
             end
-            println("Making operator")
             return Operator(ops, amplitudes)
         else
-            println("Making generator dip")
             return Generator_dip(ops, amplitudes, dresses; 
                 dresses_derivatives=dres_der)
         end
@@ -282,86 +278,10 @@ function get_controls(generator::Generator_dip)
     return Tuple(controls)
 end
 
-
-# During evaluation we need to know the dress functions and the amplitudes
-# Start here the modification 
-function evaluate(dress::Function, ampl_vector::Vector, args...; vals_dict=IdDict())
-    if haskey(vals_dict, dress)
-        return vals_dict[dress]
-    else
-        return evaluatedress(dress, ampl_vector, args...)
-    end
-end
-
-# Evaluate the dress function
-# If ampl is a function, we evaluate it with the given arguments
-# If ampl is a vector, we evaluate it with the given arguments
-# and return the corresponding value
-# Pass the values of the amplitudes to the dress function
-# The dress function is a function of the amplitudes
-function evaluatedress(dress::Function, ampl_vector::Vector, t::Float64)
-    numerical_amplitudes = []
-    for (i, ampl) in enumerate(ampl_vector)
-        if ampl isa Function
-            coeff = evaluate(ampl, t)
-            if coeff isa Number
-                push!(numerical_amplitudes, coeff)
-            else
-                error(
-                    "In `evaluate($dress, $ampl_vector, $t)`, the amplitude $i evaluates to $(typeof(coeff)), not a number"
-                )
-            end
-        elseif ampl isa Vector
-            error(
-                "In `evaluate($dress, $ampl_vector, $t)`, the amplitude $i is a vector, not a function: $(typeof(ampl))"
-            )
-        else
-            error("Amplitude is not a function or vector: $(typeof(ampl))")
-        end
-    end
-
-    return dress(numerical_amplitudes...)
-end
-
-
-function evaluatedress(dress::Function, ampl_vector::Vector, tlist::Vector, n::Int64)
-    numerical_amplitudes = []
-    for (i, ampl) in enumerate(ampl_vector)
-        if ampl isa Function
-            coeff = evaluate(ampl, tlist, n)
-            if coeff isa Number
-                push!(numerical_amplitudes, coeff)
-            else
-                error(
-                    "In `evaluate($dress, $ampl_vector, $n)`, the amplitude $i evaluates to $(typeof(coeff)), not a number"
-                )
-            end
-        elseif ampl isa Vector
-            coeff = evaluate(ampl, tlist, n)
-            if coeff isa Number
-                push!(numerical_amplitudes, coeff)
-            else
-                error(
-                    "In `evaluate($dress, $ampl_vector, $n)`, the amplitude $i evaluates to $(typeof(coeff)), not a number"
-                )
-            end
-        else
-            error("Amplitude is not a function or vector: $(typeof(ampl))")
-        end
-    end
-
-    return dress(numerical_amplitudes...)
-end
-
-
-# Some functions to evaluate the dress where made yesterday
-
-
 function evaluate(generator::Generator_dip, args...; vals_dict=IdDict())
     coeffs = []
-    ampl_vector = generator.amplitudes
-    for (i, dres) in enumerate(generator.dresses)
-        coeff = evaluate(dres, ampl_vector, args...; vals_dict)
+    for (i, ampl) in enumerate(generator.amplitudes)
+        coeff = evaluate(ampl, args...; vals_dict)
         if coeff isa Number
             push!(coeffs, coeff)
         else
@@ -370,17 +290,34 @@ function evaluate(generator::Generator_dip, args...; vals_dict=IdDict())
             )
         end
     end
-    coeffs = [coeffs...]  # narrow eltype
-    return Operator(generator.ops, coeffs)
+    # Now that the coeffs of the amplitudes are known, we can evaluate the dresses to find the constants that will multiply each operator
+    dress_coeffs = []
+    for (i, dres) in enumerate(generator.dresses)
+        coeff = dres(coeffs...)
+        if coeff isa Number
+            push!(dress_coeffs, coeff)
+        else
+            error(
+                "In `evaluate($generator, $args, vals_dict=$vals_dict)`, the dress $i evaluates to $(typeof(coeff)), not a number"
+            )
+        end
+    end
+    dress_coeffs = [dress_coeffs...]  # narrow eltype
+    return Operator(generator.ops, dress_coeffs)
 end
 
 
 function evaluate!(op::Operator, generator::Generator_dip, args...; vals_dict=IdDict())
     @assert length(op.ops) == length(generator.ops)
     @assert all(O ≡ P for (O, P) in zip(op.ops, generator.ops))
-    ampl_vector = generator.amplitudes
+    amplis = []
+    for (i, ampl) in enumerate(generator.amplitudes)
+        coeff = evaluate(ampl, args...; vals_dict)
+        @assert coeff isa Number
+        push!(amplis, coeff)
+    end
     for (i, dres) in enumerate(generator.dresses)
-        coeff = evaluate(dres, ampl_vector, args...; vals_dict)
+        coeff = dres(amplis...)
         @assert coeff isa Number
         op.coeffs[i] = coeff
     end
@@ -396,13 +333,6 @@ function substitute(generator::Generator_dip, replacements)
     return Generator_dip(ops, amplitudes, generator.dresses)
 end
 
-function substitute(operator::Operator, replacements)
-    if operator ∈ keys(replacements)
-        return replacements[operator]
-    end
-    ops = [substitute(op, replacements) for op in operator.ops]
-    return Operator(ops, operator.coeffs)
-end
 
 
 end
