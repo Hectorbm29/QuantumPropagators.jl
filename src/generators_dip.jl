@@ -77,6 +77,7 @@ struct Generator_dip{OT,AT,DT}
         columns are the amplitudes and rows are the dresses.
         """
 
+        println("Generator dip: $ops, $amplitudes, $dresses, $dresses_derivatives")
         new{OT,AT,DT}(ops, amplitudes, dresses, dresses_derivatives)
     end
 
@@ -238,6 +239,7 @@ function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=fals
     if length(amplitudes) == 0 || length(dresses) == 0
         # No amplitudes or dresses, so we have a static operator
         (length(drift) > 0) || error("Generator_dip has no terms")
+        println("Making drift")
         return drift[1]
     else
         if check
@@ -252,8 +254,10 @@ function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=fals
             if !isnothing(dres_der)
                 @warn("Dresses derivatives are not supported for amplitudes of type $AT")
             end
+            println("Making operator")
             return Operator(ops, amplitudes)
         else
+            println("Making generator dip")
             return Generator_dip(ops, amplitudes, dresses; 
                 dresses_derivatives=dres_der)
         end
