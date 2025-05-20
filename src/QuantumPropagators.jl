@@ -25,10 +25,14 @@ include("controls.jl")  # submodule Controls
 include("amplitudes.jl")  # submodule Amplitudes
 
 include("generators.jl")  # submodule Generators
+include("generators_dip.jl")  # submodule Generators_dip
 
 
 using .Generators
 export liouvillian, hamiltonian
+
+using .Generators_dip
+export hamiltonian_dip
 
 include("propagator.jl")
 export init_prop, reinit_prop!, prop_step!
