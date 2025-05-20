@@ -51,7 +51,7 @@ struct Generator_dip{OT,AT,DT}
     dresses_derivatives::Union{Matrix{Function}, Nothing}
 
     function Generator_dip(ops::Vector{OT}, amplitudes::Vector{AT}, 
-                            dresses::Vector{DT}; dresses_derivatives::Union{Matrix{Function}, Nothing}=nothing, deriv_warn=true) where {OT,AT,DT}
+                            dresses::Vector{DT}; dresses_derivatives::Union{Matrix{Function}, Nothing}=nothing, deriv_warn=false) where {OT,AT,DT}
         if length(dresses) > length(ops)
             error(
                 "The number of dresses cannot exceed the number of operators in a Generator_dip"
@@ -155,9 +155,9 @@ a static operator (e.g., an `AbstractMatrix` or [`Operator`](@ref)):
 The `hamiltonian_dip` function may generate warnings if the `terms` are of an
 unexpected type or structure.  These can be suppressed with `check=false`.
 """
-hamiltonian_dip(terms...; ampl_vec=[], dres_der=nothing, check=true, deriv_warn=true) = _make_generator_dip(terms...; ampl_vec, dres_der, check, deriv_warn)
+hamiltonian_dip(terms...; ampl_vec=[], dres_der=nothing, check=true, deriv_warn=false) = _make_generator_dip(terms...; ampl_vec, dres_der, check, deriv_warn)
 
-function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=false, deriv_warn=true)
+function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=false, deriv_warn=false)
     ops = Any[]
     drift = Any[]
     amplitudes = Any[]
