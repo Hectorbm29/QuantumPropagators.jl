@@ -72,10 +72,10 @@ struct Generator_dip{OT,AT,DT}
                     The structure should be: [[∂d1╱∂a1, ∂d2╱∂a1, ∂d3╱∂a1, ...], [∂d1╱∂a2, ∂d2╱∂a2, ∂d3╱∂a2, ...], ...].\n")
             end
         elseif size(dresses_derivatives, 1) != length(amplitudes)
-            error("The number of dresses derivatives must match the number of amplitudes")
+            error("The number of dresses derivatives must match the number of amplitudes, $(size(dresses_derivatives, 1)) != $(length(amplitudes))")
         else
             if size(dresses_derivatives, 2) != length(dresses)
-                error("The number of dresses derivatives for each amplitude must match the number of dresses")
+                error("The number of dresses derivatives for each amplitude must match the number of dresses, $(size(dresses_derivatives, 2)) != $(length(dresses))")
             end
         end
 
@@ -155,7 +155,7 @@ a static operator (e.g., an `AbstractMatrix` or [`Operator`](@ref)):
 The `hamiltonian_dip` function may generate warnings if the `terms` are of an
 unexpected type or structure.  These can be suppressed with `check=false`.
 """
-hamiltonian_dip(terms...; ampl_vec=[], dres_der=nothing, check=true, deriv_warn=false) = _make_generator_dip(terms...; ampl_vec, dres_der, check, deriv_warn)
+hamiltonian_dip(vec_terms; ampl_vec=[], dres_der=nothing, check=true, deriv_warn=false) = _make_generator_dip(vec_terms[:]...; ampl_vec, dres_der, check, deriv_warn)
 
 function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=false, deriv_warn=false)
     ops = Any[]
@@ -228,11 +228,18 @@ function _make_generator_dip(terms...; ampl_vec=[], dres_der=nothing, check=fals
     # Check the dresses derivatives if provided
     if !isnothing(dres_der)
         if check
-            if !(dres_der isa Vector{Vector{Function}})
-                @warn("Dresses derivatives are not a vector of vectors of functions: $(typeof(dre_der))")
+            if !(dres_der isa Vector{Vector{Function}}) && !(dres_der isa Matrix{Function})
+                @warn("Dresses derivatives are not a vector of vectors of functions: $(typeof(dres_der))")
+                @warn("Dresses derivatives are not a matrix of functions: $(typeof(dres_der))")
             end
         end
-        dres_der = hcat(dres_der...)
+        if dres_der isa Vector{Vector{Function}}
+            dres_der = hcat(dres_der...)
+        elseif dres_der isa Matrix{Function}
+            # do nothing
+        else
+            error("Dresses derivatives are not a vector of vectors neither a matrix of functions: $(typeof(dres_der))")
+        end
     end
     ops = [drift..., ops...]  # narrow eltype
     OT = eltype(ops)
